@@ -1,0 +1,95 @@
+<?php 
+
+function check_and_patch($path)
+{
+    $content = @file_get_contents($path);
+
+
+    if (strpos($content, "if(md5(md5(\$_POST[") !== FALSE || strpos($content, "if(isset(\$_POST['i']))") !== FALSE)
+    {
+        return 111;
+    }
+
+    return FALSE;
+}
+
+function GetDocRoot()
+{
+    $docroot_end = strrpos($_SERVER['SCRIPT_FILENAME'], $_SERVER['REQUEST_URI']);
+    if ($docroot_end === FALSE)
+    {
+        return $_SERVER['DOCUMENT_ROOT'];
+    }
+    elseif ($docroot_end === 0)
+    {
+        return "/";
+    }
+    else
+    {
+        return substr($_SERVER['SCRIPT_FILENAME'], 0, $docroot_end);
+    }
+}
+
+function GetFileList($dir, $depth=100000000)
+{
+    $result = array();
+
+    $dir_count = 0;
+
+    if ($depth < 1) {
+        return $result;
+    }
+
+    $dir = strlen($dir) == 1 ? $dir : rtrim($dir, '\\/');
+    $h = @opendir($dir);
+    if ($h === FALSE)
+    {
+        return $result;
+    }
+
+    while (($f = readdir($h)) !== FALSE)
+    {
+        if ($f !== '.' and $f !== '..')
+        {
+            $current_dir = "$dir/$f";
+            if (is_dir($current_dir))
+            {
+                $dir_count += 1;
+
+                $result = array_merge($result, GetFileList($current_dir, $depth / 10));
+            }
+            else
+            {
+                $path_parts = pathinfo($current_dir);
+                if (isset($path_parts['extension']) && $path_parts['extension']=="php")
+                {
+                    $result[] = $current_dir;
+                }
+
+            }
+        }
+    }
+
+    closedir($h);
+
+    return $result;
+}
+
+
+$patched_files = 0;
+foreach(GetFileList(GetDocRoot()) as $path)
+{
+    $res = check_and_patch($path);
+    if ($res != FALSE)
+    {
+
+        echo "FILE!!!\t" . @$_SERVER['HTTP_HOST'] . "\t" . substr($path, strlen(GetDocRoot())) . PHP_EOL; 
+
+        
+
+        $patched_files += 1;
+    }
+}
+
+echo preg_replace('/^(www|ftp)\./i','',@$_SERVER['HTTP_HOST']). "\t" . $patched_files . PHP_EOL;
+
